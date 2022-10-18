@@ -1,8 +1,8 @@
 # A-Pathfinding-Visualizer
 To run the program download A STAR PATHFINDING VISUALIZER.jar and run it
-Controls:
--use scroll wheel to increase/decrese the grid
--press escape to clear the grid
+    Controls:
+    -use scroll wheel to increase/decrese the grid
+    -press escape to clear the grid
 
 
 Here is a screenshot of the program
