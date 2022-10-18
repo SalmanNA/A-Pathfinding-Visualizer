@@ -1,4 +1,5 @@
 # A-Pathfinding-Visualizer
+This is a side project that I have been working on to gain more experience with java  
 To run the program download A STAR PATHFINDING VISUALIZER.jar and run it  
 **Controls:**  
 -use scroll wheel to increase/decrese the grid  
