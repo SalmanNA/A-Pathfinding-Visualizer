@@ -5,7 +5,10 @@ Controls:
 -press escape to clear the grid
 
 
-Here is a screenshot of the program\n
+Here is a screenshot of the program
 |
 V
+
+
+
 ![image](https://user-images.githubusercontent.com/45930927/196564620-a504a067-bd13-4500-8a53-9be797b48b96.png)
