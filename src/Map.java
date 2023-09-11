@@ -1,5 +1,7 @@
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.GridLayout;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
@@ -14,8 +16,13 @@ import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.Timer;
 
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.SwingWorker;
 
 class Map extends JPanel implements MouseListener, MouseMotionListener,ActionListener,MouseWheelListener, KeyListener {
@@ -36,20 +43,31 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 		int endy;
 		int end  = 0;
 		int click = 0;
+		int wallI = 0;
 		boolean wall = false;
 		JButton run = new JButton("Start");
-		//JButton mazeGen = new JButton(("Generate Maze"));
+		JButton mazeGen = new JButton(("Generate Maze"));
+		JSlider speed = new JSlider(JSlider.HORIZONTAL,0,30,15);
+		JLabel slider = new JLabel("Change Speed of Algorithm");
+		Color myC = new Color(0, 0,0,100);
+		BoxLayout gl = new BoxLayout(this, 1);
 		public Map() {
+			slider.setBackground(Color.BLACK);
 			this.setFocusable(true);
 			addMouseListener(this);
 			addMouseMotionListener(this);
 			run.addActionListener(this);
-		//	mazeGen.addActionListener(this);
+			mazeGen.addActionListener(this);
 			this.add(run);
-	//		this.add(mazeGen);
+			this.add(mazeGen);
 			addMouseWheelListener(this);
 			this.addKeyListener(this);
 			repaint();
+			slider.setForeground(Color.white);
+			speed.setBackground(myC);
+			speed.setOpaque(false);
+			this.add(speed);
+			this.add(slider);
 			
 		}
 		int[][] recs = new int[1000/CSIZE][1000/CSIZE];
@@ -57,6 +75,7 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 
 		int dCheck = 0;
 		boolean done = false;
+		int counter = 0;
 		ArrayList<node> open = new ArrayList<node>();
 		ArrayList<node> closed = new ArrayList<node>();
 		ArrayList<node> walls = new ArrayList<node>();
@@ -64,38 +83,46 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 		ArrayList<Integer> wallY = new ArrayList<Integer>();
 		ArrayList<Integer> x1 = new ArrayList<Integer>();
 		ArrayList<Integer> y1 = new ArrayList<Integer>();
+		ArrayList<node> mapMaker = new ArrayList<node>();
 		node current = null;
 		ArrayList<node> nodes = new ArrayList<node>();
+		ArrayList<Point> map = new ArrayList<Point>();
+		ArrayList<Point> maze = new ArrayList<Point>();
 		public void paintComponent(Graphics g) {
 			double low= 9999999;
 			node lowest = null;
 			int index = 0;
 			if(type == 0) {			
 				super.paintComponent(g);
+				g.setColor(myC);
+				g.fillRect(200, 0, 580, 50);
 				for(int y = 0; y < cells ; y++) {
 					for(int x = 0; x < cells; x++) {
 						g.setColor(Color.BLACK);
 						g.drawRect(x*CSIZE,y*CSIZE,CSIZE,CSIZE);
+						
+						
 					}
 				}
 				
+				
+				for(node var : open) {
+					g.setColor(Color.green);
+					g.fillRect((var.getX())*CSIZE,(var.getY())*CSIZE,CSIZE,CSIZE);
+				}
+				for(node var : closed) {
+					g.setColor(Color.red);
+					g.fillRect((var.getX())*CSIZE,(var.getY())*CSIZE,CSIZE,CSIZE);
+				}
+				for(int i = 0; i < wallX.size();i++) {
+					g.setColor(Color.BLUE);
+					g.fillRect(wallX.get(i)*CSIZE,wallY.get(i)*CSIZE,CSIZE,CSIZE);
+				}
+				for(int i = 0;i<x1.size();i++) {
+					g.setColor(Color.ORANGE);
+					g.fillRect(x1.get(i)*CSIZE,y1.get(i)*CSIZE,CSIZE,CSIZE);
+				}
 				if(current != null) {
-					for(node var : open) {
-						g.setColor(Color.green);
-						g.fillRect((var.getX())*CSIZE,(var.getY())*CSIZE,CSIZE,CSIZE);
-					}
-					for(node var : closed) {
-						g.setColor(Color.red);
-						g.fillRect((var.getX())*CSIZE,(var.getY())*CSIZE,CSIZE,CSIZE);
-					}
-					for(int i = 0; i < wallX.size();i++) {
-						g.setColor(Color.BLUE);
-						g.fillRect(wallX.get(i)*CSIZE,wallY.get(i)*CSIZE,CSIZE,CSIZE);
-					}
-					for(int i = 0;i<x1.size();i++) {
-						g.setColor(Color.ORANGE);
-						g.fillRect(x1.get(i)*CSIZE,y1.get(i)*CSIZE,CSIZE,CSIZE);
-					}
 					g.setColor(Color.GRAY);
 					g.fillRect(startx*CSIZE,starty*CSIZE,CSIZE,CSIZE);
 					g.setColor(Color.BLACK);
@@ -103,26 +130,176 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 					
 				}
 			}else if(type == -1) {
-				MazeGenerator maze = new  MazeGenerator(cells,cells);
-				int[][] make = maze.getMaze();
-				for (int row = 0; row < make.length; row++) {
-					for (int col = 0; col < cells; col+=3) {
-						if((make[col][row] & 1) ==0) {
-							g.setColor(Color.BLUE);
-							g.fillRect(col*CSIZE,row*CSIZE,CSIZE,CSIZE);
-							walls.add(new node(0.0,0.0, col, row,null));
+				
+				map.clear();
+				mapMaker.clear();
+				maze.clear();
+				wallX.clear();
+				wallY.clear();
+				walls.clear();
+				node head = new node(0.0,0.0,0,0,null);
+				int visited = 0;
+				int x = 0;
+				int y = 0;
+				int direction;
+				mapMaker.add(head);
+				node current;
+				node newN;
+				current = head;
+				map.add(new Point(0,0));
+				int loop = 0;
+				while(visited<((cells/2)*(cells/2))-1) {
+					direction = (int) (Math.random()*4)+1;
+					switch(direction) {
+					case 1:
+						y-=2;
+						if((x<0 || y<0)||(x>cells-1 || y>cells-1)) {
+							y+=2;
+							break;
 						}
 						
-					}
-					for (int col = 0; col < cells; col+=2) {
-						if((make[col][row] & 8) ==0) {
-							g.setColor(Color.BLUE);
-							g.fillRect(row*CSIZE,col*CSIZE,CSIZE,CSIZE);
-							walls.add(new node(0.0,0.0, row, col,null));
+						if(map.contains(new Point(x,y))) {
+							y+=2;
+							loop++;
+							if(loop>25) {		
+								x = current.getParent().getX();
+								y = current.getParent().getY();
+								current = current.getParent();
+								loop = 0;
+							}
+							break;
 						}
-						
+						mapMaker.add(new node(0.0,0.0,x,y,current));
+						newN = new node(0.0,0.0,x,y,current);
+						current = newN;
+						map.add(new Point(x,y));
+						maze.add(new Point(x,y));
+						maze.add(new Point(x,y+1));
+						visited++;
+						System.out.println(x+" "+y);
+						System.out.println(visited);
+						break;
+					case 2: 
+						x+=2;
+						if((x<0 || y<0)||(x>cells-1 || y>cells-1)) {
+							x-=2;
+							break;
+						}
+						if(map.contains(new Point(x,y))) {
+							x-=2;
+							loop++;
+							if(loop>25) {		
+								x = current.getParent().getX();
+								y = current.getParent().getY();
+								current = current.getParent();
+								loop = 0;
+							}
+							break;
+						}
+						mapMaker.add(new node(0.0,0.0,x,y,current));
+						newN = new node(0.0,0.0,x,y,current);
+						current = newN;
+						map.add(new Point(x,y));
+						maze.add(new Point(x,y));
+						maze.add(new Point(x-1,y));
+						visited++;
+						System.out.println(x+" "+y);
+						System.out.println(visited);
+						break;
+					case 3:
+						y+=2;
+						if((x<0 || y<0)||(x>cells-1 || y>cells-1)) {
+							y-=2;
+							break;
+						}
+						if(map.contains(new Point(x,y))) {
+							y-=2;
+							loop++;
+							if(loop>25) {		
+								x = current.getParent().getX();
+								y = current.getParent().getY();
+								current = current.getParent();
+								loop = 0;
+							}
+							break;
+						}
+						mapMaker.add(new node(0.0,0.0,x,y,current));
+						newN = new node(0.0,0.0,x,y,current);
+						current = newN;
+						map.add(new Point(x,y));
+						maze.add(new Point(x,y));
+						maze.add(new Point(x,y-1));
+						visited++;
+						System.out.println(x+" "+y);
+						System.out.println(visited);
+						break;
+					case 4:
+						x-=2; 
+						if((x<0 || y<0)||(x>cells-1 || y>cells-1)) {
+							x+=2;
+							break;
+						}
+						if(map.contains(new Point(x,y))) {
+							x+=2;
+							loop++;
+							if(loop>25) {		
+								x = current.getParent().getX();
+								y = current.getParent().getY();
+								current = current.getParent();
+								loop = 0;
+							}
+							break;
+						}
+						mapMaker.add(new node(0.0,0.0,x,y,current));
+						newN = new node(0.0,0.0,x,y,current);
+						current = newN;
+						map.add(new Point(x,y));
+						maze.add(new Point(x,y));
+						maze.add(new Point(x+1,y));
+						visited++;
+						System.out.println(x+" "+y);
+						System.out.println(visited);
+						break;
 					}
 				}
+				
+				maze.add(new Point(0,0));
+				for(int row = 0; row < cells;row++) {
+					for(int col = 0; col<cells;col++) {
+						if(maze.contains(new Point(col,row))){
+							continue;
+						}else {
+							wallX.add(col);
+							wallY.add(row);	
+							walls.add(new node(999999999.0,999999999.0,col,row,null));
+							
+						}
+					}
+				}
+				for(int i = 0;i<cells;i++) {
+					wallX.add(i);
+					wallY.add(cells);
+					walls.add(new node(999999999.0,999999999.0,i,cells,null));
+				}
+				for(int i = 0;i<cells;i++) {
+					wallX.add(cells);
+					wallY.add(i);
+					walls.add(new node(999999999.0,999999999.0,cells,i,null));
+				}
+				for(int i = 0;i<cells;i++) {
+					wallX.add(i);
+					wallY.add(-1);
+					walls.add(new node(999999999.0,999999999.0,i,-1,null));
+				}
+				for(int i = 0;i<cells;i++) {
+					wallX.add(-1);
+					wallY.add(i);
+					walls.add(new node(999999999.0,999999999.0,-1,i,null));
+				}
+				
+				type = 0;
+				repaint();
+
 			}
 			switch (type) {
 			case 1:
@@ -133,7 +310,7 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 				g.setColor(Color.BLUE);
 				g.fillRect(x*CSIZE,y*CSIZE,CSIZE,CSIZE); 
 				if(count == 0) {
-					walls.add(new node(0.0,0.0, x, y,null));
+					walls.add(new node(999999999.0,999999999.0, x, y,null));
 					wallX.add(x);
 					wallY.add(y);
 				}
@@ -145,7 +322,7 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 					}
 				}
 				if(add) {
-					walls.add(new node(0.0,0.0, x, y,null));
+					walls.add(new node(999999999.0,999999999.0, x, y,null));
 					wallX.add(x);
 					wallY.add(y);
 				}
@@ -164,15 +341,8 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 				if(done) {
 					return;
 				}
-//					g.setColor(Color.GREEN);
-//					g.fillRect((startx)*CSIZE,(starty)*CSIZE,CSIZE,CSIZE);
 					node[] neighbors = new node[4];
-//					open.add(new node(Math.sqrt(Math.pow((Math.abs((pointx)-startx)),2) + Math.pow((Math.abs((pointy-1)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx)-endx)),2) + Math.pow((Math.abs((pointy-1)-endy)),2)), pointx, pointy-1));
 					closed.add(current);
-//					neighbors[0] = new node(current.getsCost()+1,Math.sqrt(Math.pow(Math.abs(1+current.getX()-endx),2)+Math.pow(Math.abs(current.getY()-endy),2)), pointx+1, pointy, current);
-//					neighbors[1] = new node(current.getsCost()+1,Math.sqrt(Math.pow(Math.abs(current.getX()-endx-1),2)+Math.pow(Math.abs(current.getY()-endy),2)), pointx-1, pointy, current);
-//					neighbors[2] = new node(current.getsCost()+1,Math.sqrt(Math.pow(Math.abs(current.getX()-endx),2)+Math.pow(Math.abs(1+current.getY()-endy),2)), pointx, pointy+1, current);
-//					neighbors[3] = new node(current.getsCost()+1,Math.sqrt(Math.pow(Math.abs(current.getX()-endx),2)+Math.pow(Math.abs(current.getY()-endy-1),2)), pointx, pointy-1, current);
 
 					
 					neighbors[0] = new node(current.getsCost()+1,Math.abs(1+current.getX()-endx)+Math.abs(current.getY()-endy), pointx+1, pointy, current);
@@ -184,11 +354,8 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 					open.add(neighbors[1]);
 					open.add(neighbors[2]);
 					open.add(neighbors[3]);
-//					open.add(neighbors[4]);
-//					open.add(neighbors[5]);
-//					open.add(neighbors[6]);
-//					open.add(neighbors[7]);
 					
+					//remove diag
 					for(int i = 0;i<open.size();i++) {
 						for(int j = i+1;j<open.size();j++) {
 							if(open.get(i).getX()==open.get(j).getX() && open.get(i).getY()==open.get(j).getY()) {
@@ -196,6 +363,7 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 							}
 						}
 					}
+					//remove straight
 					for(int i = 0;i<closed.size();i++) {
 						for(int j = 0;j<open.size();j++) {
 							if(open.get(j).getX()==closed.get(i).getX() && open.get(j).getY()==closed.get(i).getY()) {
@@ -203,28 +371,33 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 							}
 						}
 					}
-//					if(open.contains(neighbors[4])) {
-//						System.out.println("WORK");
-//					}else {
-//						open.add(neighbors[4]);						
-//					}if(open.contains(neighbors[5])) {
-//						System.out.println("WORK");
-//					}else {
-//						open.add(neighbors[5]);						
-//					}if(open.contains(neighbors[6])) {
-//						System.out.println("WORK");
-//					}else {
-//						open.add(neighbors[6]);						
-//					}if(open.contains(neighbors[7])) {
-//						System.out.println("WORK");
-//					}else {
-//						open.add(neighbors[7]);						
-//					}
-					
+					for(int i = 0;i<open.size();i++) {
+						if(open.get(i).getX()<0||open.get(i).getY()<0) {
+							open.remove(i);
+						}
+					}
+					for(int i = 0;i<walls.size();i++) {
+						for(int j = 0;j<open.size();j++) {
+							if(open.get(j).getX()==walls.get(i).getX() && open.get(j).getY()==walls.get(i).getY()) {
+								open.remove(j);
+							}
+						}
+					}
+					for(int i = 0; i < open.size();i++) {
+						if((open.get(i).getX()>cells)||(open.get(i).getY()>cells)) {
+							open.remove(i);
+						}
+					}
+					if(open.size()==0) {
+						done = true;
+						type = 5;
+					}
 					System.out.println("OPEN "+open.size());
 					if(!done) {
-						current = findLow(open.toArray(new node[0]));						
+						current = aStarPath(open.toArray(new node[0]));
+						
 					}
+					
 					current.setNeighbors(neighbors);
 					for(int i = 0; i<current.getNeighbors().length;i++) {
 						g.setColor(Color.GREEN);
@@ -261,8 +434,6 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 							g.setColor(Color.GRAY);
 							g.fillRect((nodes.get(i).getX())*CSIZE,(nodes.get(i).getY())*CSIZE,CSIZE,CSIZE);
 						}
-//						g.setColor(Color.GREEN);
-//						g.fillRect(startx*CSIZE,starty*CSIZE,CSIZE,CSIZE);
 						g.setColor(Color.RED);
 						g.fillRect(endx*CSIZE,endy*CSIZE,CSIZE,CSIZE);
 						while (current.getParent()!=null) {
@@ -296,7 +467,6 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 
 		@Override
 		public void keyPressed(KeyEvent e) {
-			System.out.println("SPACE");
 			int key = e.getKeyCode();
 			if(key == KeyEvent.VK_ESCAPE&&type !=4) {
 				System.out.println("SPACE");
@@ -340,6 +510,7 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 
 		@Override
 		public void mouseMoved(MouseEvent e) {
+			
 		}
 
 		@Override
@@ -373,12 +544,18 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 					CSIZE+=1;
 					cells = 1000/CSIZE;
 					repaint();
+					if(cells%2==1) {
+						cells++;
+					}
 					System.out.println(cells);
-				}else if(e.getWheelRotation()<0&&CSIZE>5){
+				}else if(e.getWheelRotation()<0&&CSIZE>2){
 					type = 0;
 					CSIZE-=1;
 					cells = 1000/CSIZE;
 					repaint();
+					if(cells%2==1) {
+						cells++;
+					}
 					System.out.println(cells);
 				}
 				
@@ -411,16 +588,12 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
-		//	if (e.getSource()==mazeGen)
-	      //   {
-				if(type == -1) {
-					type = 0;
-					repaint();
-				}else {
-					type = -1;
-					repaint();					
-				}
-	      //   }else {
+			if (e.getSource()==mazeGen)
+	         {
+				type = -1;
+				repaint();
+				
+	         }else {
 	        	 
 	        	 if(!done) {
 	        		 
@@ -430,108 +603,43 @@ class Map extends JPanel implements MouseListener, MouseMotionListener,ActionLis
 	        		 }
 	        		 type = 4;
 	        		 click++;
-	        		 
 	        		 new SwingWorker() {
 	        			 @Override
 	        			 protected Object doInBackground() throws Exception {
 	        				 while(!done) {
 	        					 repaint();
-	        					 try{Thread.sleep(1);} catch(Exception ex){}
+	        					 try{Thread.sleep(speed.getValue());} catch(Exception ex){}
 	        				 }
 	        				 return null;
 	        			 }
 	        		 }.execute();
 	        	 }
-	        // }
+	         }
 			this.requestFocus();
 		}
-		public node findLow(node[] list) {
+		
+		
+		public node aStarPath(node[] list) {
 			double low = 99999999;
 			int index = 0;
-			int countt = 0;
-			ArrayList<node> dupe = new ArrayList<node>();
 			for(int i = 0; i<list.length;i++) {
-				boolean cont = false;
 				if(list[i].getfCost()<low) {
-					for(node var : walls) {
-						if(var.getX()==list[i].getX()&&var.getY()==list[i].getY()) {
-							cont = true;
-							wall = true;
-						}
-					}
-					if(cont) {
-						continue;
-					}
 					low = list[i].getfCost();
 					index = i;
 				}
 			}
-			for(int i = 0; i<list.length;i++) {
-				if(low==list[i].getfCost()) {
-					dupe.add(list[i]);
-					countt++;
-				}
-			}
-//			if(!wall) {
-//				System.out.println("EEEEEEEEEE");
-//				return findLowE(list);
-//			}
-			System.out.println("FFFFFFFFF");
+			
 			return list[index];
 		}
-		public node findLowE(node[] list) {
-			double low = 99999999;
-			int index = 0;
-			for(int i = 0; i<list.length;i++) {
-				boolean cont = false;
-				if(list[i].geteCost()<low) {
-					for(node var : walls) {
-						if(var.getX()==list[i].getX()&&var.getY()==list[i].getY()) {
-							cont = true;
-						}
-					}
-					for(node var: closed) {
-						if(var.getX()==list[i].getX()&&var.getY()==list[i].getY()) {
-							cont = true;
-						}
-					}
-					if(cont) {
-						continue;
-					}
-					low = list[i].geteCost();
-					index = i;
-				}
+		
+		public void updateWall(Graphics g) {
+			for(int i = 0; i < wallX.size();i++) {
+				g.setColor(Color.BLUE);
+				g.fillRect(wallX.get(i)*CSIZE,wallY.get(i)*CSIZE,CSIZE,CSIZE);
+				
+				
 			}
-			return list[index];
+			
 		}
 
 	}
-/*
- 
-					if(open.contains(new node(Math.sqrt(Math.pow((Math.abs((pointx+1)-startx)),2) + Math.pow((Math.abs((pointy)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx+1)-endx)),2) + Math.pow((Math.abs((pointy)-endy)),2)), pointx, pointy-1))) {
-						break;
-					}else {						
-						open.add(new node(Math.sqrt(Math.pow((Math.abs((pointx+1)-startx)),2) + Math.pow((Math.abs((pointy)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx+1)-endx)),2) + Math.pow((Math.abs((pointy)-endy)),2)), pointx, pointy-1));
-					}
-					
-					if(open.contains(new node(Math.sqrt(Math.pow((Math.abs((pointx-1)-startx)),2) + Math.pow((Math.abs((pointy)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx+1)-endx)),2) + Math.pow((Math.abs((pointy)-endy)),2)), pointx, pointy-1))) {
-						break;
-					}else {						
-						open.add(new node(Math.sqrt(Math.pow((Math.abs((pointx-1)-startx)),2) + Math.pow((Math.abs((pointy)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx-1)-endx)),2) + Math.pow((Math.abs((pointy)-endy)),2)), pointx, pointy-1));
-						
-					}
-					
-					if(open.contains(new node(Math.sqrt(Math.pow((Math.abs((pointx)-startx)),2) + Math.pow((Math.abs((pointy+1)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx)-endx)),2) + Math.pow((Math.abs((pointy+1)-endy)),2)), pointx, pointy-1))) {
-						break;
-					}else {						
-						open.add(new node(Math.sqrt(Math.pow((Math.abs((pointx)-startx)),2) + Math.pow((Math.abs((pointy+1)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx)-endx)),2) + Math.pow((Math.abs((pointy+1)-endy)),2)), pointx, pointy-1));
-						
-					}
-					
-					if(open.contains(new node(Math.sqrt(Math.pow((Math.abs((pointx)-startx)),2) + Math.pow((Math.abs((pointy-1)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx)-endx)),2) + Math.pow((Math.abs((pointy-1)-endy)),2)), pointx, pointy-1))) {
-						break;
-					}else {						
-						open.add(new node(Math.sqrt(Math.pow((Math.abs((pointx)-startx)),2) + Math.pow((Math.abs((pointy-1)-starty)),2)) , Math.sqrt(Math.pow((Math.abs((pointx)-endx)),2) + Math.pow((Math.abs((pointy-1)-endy)),2)), pointx, pointy-1));
-						
-					}	
-*/
